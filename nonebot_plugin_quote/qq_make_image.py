@@ -20,11 +20,22 @@ async def generate_emulating_native_qq_style_image(userid: int, groupid: int, fo
                 "user_type": response['role'],
                 "avatar": f"https://q.qlogo.cn/g?b=qq&nk={userid}&s=640",
                 "title": response['title'],
-                "message": raw_message
+                "message": ""
             }
         ],
         "font_path": fontpath
         }
+    
+    
+    for i in raw_message:
+        # data['messages'].append({
+        #     "username": response['card_or_nickname'],
+        #     "level": int(response['level']),
+        #     "user_type": response['role'],
+        #     "avatar": f"https://q.qlogo.cn/g?b=qq&nk={userid}&s=640",
+        #     "message": i[1]
+        #     })
+        data["messages"][0]["message"] += i[1]
 
     html_content = template.render(**data)
 
