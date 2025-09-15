@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>Chat UI</title>
+<style>
+@font-face {
+    font-family: 'CustomFont';
+    src: url('{{ font_path }}') format('truetype');
+}
+
+body {
+    font-family: 'CustomFont', sans-serif;
+    margin: 0;
+    padding: 0;
+    background: #f0f0f0;
+    display: flex;
+    justify-content: center;
+}
+
+.chat-wrapper {
+    background: #f0f0f0;
+    border-radius: 12px;
+    padding: 20px;
+    max-width: 600px;
+    width: auto;
+    display: inline-block;
+}
+
+.chat-container {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.chat-message {
+    display: flex;
+    align-items: flex-start;
+}
+
+.avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    margin-right: 12px;
+    background: #e0e0e0;
+}
+
+.message-block {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    max-width: calc(100% - 52px);
+}
+
+.username-level {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+}
+
+.username {
+    font-size: 14px;
+    color: #333;
+    font-weight: 500;
+}
+
+.level {
+    font-weight: bold;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    height: 20px;
+    line-height: 1;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
+.level.admin {
+    background-color: #CEEEEB;
+    color: #82C1B0;
+    padding-right: 6px;
+}
+
+.level.owner {
+    background-color: #F5DDCB;
+    color: #FF9B3B;
+    padding-right: 6px;
+}
+
+.message-text {
+    display: inline-block;
+    font-size: 16px;
+    padding: 10px 14px;
+    background: #fff;
+    border-radius: 12px;
+    min-width: fit-content;
+    width: fit-content;
+    max-width: 100%;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    line-height: 1.4;
+}
+
+.message-text img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin-top: 1px;
+    margin-bottom: 4px;
+}
+
+</style>
+</head>
+<body>
+<div class="chat-wrapper">
+    <div class="chat-container">
+        {% for msg in messages %}
+        <div class="chat-message">
+            <img class="avatar" src="{{ msg.avatar }}" alt="avatar">
+            <div class="message-block">
+                <div class="username-level">
+                    <span class="username">{{ msg.username }}</span>
+
+                    {% if msg.user_type == 'member' %}
+                        <span class="level member"
+                              style="background-color: {% if msg.title %}#e4daf3{% else %}#E2E2E2{% endif %};
+                                     color: {% if msg.title %}#b589f6{% else %}#a2a2a2{% endif %};">
+                            LV{{ msg.level }}{% if msg.title %} {{ msg.title }}{% endif %}
+                        </span>
+                    {% elif msg.user_type == 'admin' %}
+                        <span class="level admin">
+                            LV{{ msg.level }}{% if msg.title %} {{ msg.title }}{% else %} 管理员{% endif %}
+                        </span>
+                    {% elif msg.user_type == 'owner' %}
+                        <span class="level owner">
+                            LV{{ msg.level }}{% if msg.title %} {{ msg.title }}{% else %} 群主{% endif %}
+                        </span>
+                    {% endif %}
+
+                </div>
+                <div class="message-text">{{ msg.message.replace('\n', '<br>') | safe }}</div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+</body>
+</html>
