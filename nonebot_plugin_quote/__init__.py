@@ -9,7 +9,8 @@ import json
 import random
 import os
 import shutil
-from .task import offer, query, delete, handle_ocr_text, inverted2forward, findAlltag, addTag, delTag
+import asyncio
+from .task import offer, query, delete, inverted2forward, findAlltag, addTag, delTag
 from .task import copy_images_files
 from .config import Config, check_font
 from nonebot.log import logger
@@ -33,6 +34,14 @@ __plugin_meta__ = PluginMetadata(
         'version': 'v0.4.3',
     },
 )
+
+ocr = PaddleOCR(use_angle_cls=True, lang='ch')
+try:
+    import numpy as np
+    dummy = np.zeros((100,100,3), dtype=np.uint8)
+    ocr.predict(dummy)
+except Exception:
+    pass
 
 plugin_config = Config.parse_obj(get_driver().config.dict())
 plugin_config.global_superuser = list({*plugin_config.global_superuser, *plugin_config.superusers})
@@ -185,21 +194,17 @@ async def save_img_handle(bot: Bot, event: GroupMessageEvent, state: T_State, Se
     image_path = os.path.abspath(os.path.join(quote_path, os.path.basename(image_path)))
     image_name = os.path.basename(image_path)
     logger.info(f"图片已保存到 {image_path}")
-    # OCR分词
-    # 初始化PaddleOCR
-    ocr = PaddleOCR(use_angle_cls=True, lang='ch')
+    loop = asyncio.get_running_loop()
+    ocr_result = await loop.run_in_executor(None, ocr.predict, image_path)
+    ocr_result = ocr_result[0]['rec_texts']
+    ocr_result.remove('')
+    ocr_content = ''
     try:
-        # 使用PaddleOCR进行OCR识别
-        ocr_result = ocr.ocr(image_path, cls=True)
-        # 处理OCR识别结果
-        ocr_content = ''
         for line in ocr_result:
-            for word in line:
-                ocr_content += word[1][0] + ' '
+            ocr_content += f"{line} "
     except Exception as e:
         ocr_content = ''
         logger.error(f"OCR识别失败: {e}")
-
 
     group_id = Session.id2
 
@@ -218,11 +223,7 @@ async def save_img_handle(bot: Bot, event: GroupMessageEvent, state: T_State, Se
     with open(plugin_config.inverted_index_path, 'w', encoding='UTF-8') as fc:
         json.dump(inverted_index, fc, indent=4, ensure_ascii=False)
 
-    await bot.call_api('send_group_msg', **{
-            'group_id': int(group_id),
-            'message': MessageSegment.reply(message_id) + '保存成功'
-        })
-
+    await save_img.finish(MessageSegment.reply(message_id)+MessageSegment.text('保存成功'))
 
 record_pool = on_startswith('{}语录'.format(plugin_config.quote_startcmd), priority=2, block=True, **need_at)
 
@@ -354,6 +355,8 @@ async def alltag_handle(bot: Bot, event: GroupMessageEvent, state: T_State, Sess
     tags = findAlltag(imgs, forward_index, group_id)
     if tags is None:
         msg = ' 该语录不存在'
+    elif tags == set():
+        msg = ' 该语录无Tag，请使用addtag手动添加Tag'
     else:
         msg = ' 该语录的所有Tag为: '
         n = 0

@@ -26,33 +26,28 @@ def offer(group_id, img_file, content, inverted_index, forward_index):
     return inverted_index, forward_index
 
 
-# 倒排索引表查询图片
+
 def query(sentence, group_id, inverted_index):
     if sentence.startswith('#'):
         cut_words = [sentence[1:]]
     else:
         cut_words = jieba.lcut_for_search(sentence)
         cut_words = list(set(cut_words))
+    cut_words = [w.lower() if w.isascii() else w for w in cut_words]
     if group_id not in inverted_index:
         return {'status': -1}
+
     hash_map = inverted_index[group_id]
-    count_map = {}
-    result_pool = []
+    word_sets = []
     for word in cut_words:
-        if word not in hash_map:
+        word_key = word.lower() if word.isascii() else word
+        if word_key not in hash_map:
             return {'status': 2}
-        for img in hash_map[word]:
-            if img not in count_map:
-                count_map[img] = 1
-            else:
-                count_map[img] += 1
-            if count_map[img] == len(cut_words):
-                    result_pool.append(img)
-        
-    if len(result_pool) == 0:
+        word_sets.append(set(hash_map[word_key]))
+    result_pool = set.intersection(*word_sets) if word_sets else set()
+    if not result_pool:
         return {'status': 2}
-    idx = random.randint(0, len(result_pool)-1)
-    return {'status': 1, 'msg': result_pool[idx]}
+    return {'status': 1, 'msg': random.choice(list(result_pool))}
 
 
 def _remove(arr, ele):
