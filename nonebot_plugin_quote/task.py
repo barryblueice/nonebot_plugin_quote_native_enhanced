@@ -26,9 +26,8 @@ def offer(group_id, img_file, content, inverted_index, forward_index):
     
     return inverted_index, forward_index
 
-
-
 def query(sentence, group_id, inverted_index):
+    import jieba, random
     if sentence.startswith('#'):
         cut_words = [sentence[1:]]
     else:
@@ -37,19 +36,24 @@ def query(sentence, group_id, inverted_index):
     cut_words = [w.lower() if w.isascii() else w for w in cut_words]
     if group_id not in inverted_index:
         return {'status': -1}
-
     hash_map = inverted_index[group_id]
     word_sets = []
     for word in cut_words:
         word_key = word.lower() if word.isascii() else word
-        if word_key not in hash_map:
-            return {'status': 2}
-        word_sets.append(set(hash_map[word_key]))
-    result_pool = set.intersection(*word_sets) if word_sets else set()
+        if word_key in hash_map:
+            word_sets.append(set(hash_map[word_key]))
+    if not word_sets:
+        return {'status': 2}
+
+    # AND 查询
+    result_pool = set.intersection(*word_sets)
+    if not result_pool:
+        result_pool = set().union(*word_sets)
+
     if not result_pool:
         return {'status': 2}
-    return {'status': 1, 'msg': random.choice(list(result_pool))}
 
+    return {'status': 1, 'msg': random.choice(list(result_pool))}
 
 def _remove(arr, ele):
     old_len = len(arr)
@@ -60,7 +64,6 @@ def _remove(arr, ele):
             break
     
     return len(arr) < old_len
-
 
 # 删除内容
 def delete(img_name, group_id, record, inverted_index, forward_index):
