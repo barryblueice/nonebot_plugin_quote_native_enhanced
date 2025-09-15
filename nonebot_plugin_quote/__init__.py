@@ -85,7 +85,11 @@ async def save_img_handle(bot: Bot, event: GroupMessageEvent, state: T_State, Se
     loop = asyncio.get_running_loop()
     ocr_result = await loop.run_in_executor(None, ocr.predict, image_path)
     ocr_result = ocr_result[0]['rec_texts']
-    ocr_result.remove('')
+    try:
+        ocr_result.remove('')
+    except:
+        pass
+    ocr_result = list(set(ocr_result))
     ocr_content = ''
     try:
         for line in ocr_result:
@@ -303,6 +307,7 @@ make_record = on_regex(pattern="^{}记录$".format(re.escape(plugin_config.quote
 @make_record.handle()
 async def make_record_handle(bot: Bot, event: GroupMessageEvent, state: T_State, Session: EventSession):
 
+    isimg = False
     group_id = Session.id2
 
     if not check_font(emulating_font_path):
@@ -330,16 +335,33 @@ async def make_record_handle(bot: Bot, event: GroupMessageEvent, state: T_State,
             if i["type"] == "text":
                 msglist.append([i["type"], i["data"]["text"]])
             elif i["type"] == "image":
+                isimg = True
                 msglist.append([i["type"], f'<img src="{i["data"]["url"]}" alt="image">'])
         img_data = await generate_emulating_native_qq_style_image(int(qqid), int(group_id), f"file:///{emulating_font_path}",  msglist, bot)
         image_name = f"{qqid}_{hashlib.md5(img_data).hexdigest()}.png"
-
         image_path = os.path.abspath(os.path.join(quote_path, os.path.basename(image_name)))
-
         with open(image_path, "wb") as file:
             file.write(img_data)
+        loop = asyncio.get_running_loop()
 
-        inverted_index, forward_index = offer(group_id, image_name, card + ' ' + raw_message, inverted_index, forward_index)
+        if isimg:
+            ocr_result = await loop.run_in_executor(None, ocr.predict, image_path)
+            ocr_result = ocr_result[0]['rec_texts']
+            try:
+                ocr_result.remove('')
+            except:
+                pass
+            ocr_result = list(set(ocr_result))
+            ocr_content = ''
+            try:
+                for line in ocr_result:
+                    ocr_content += f"{line} "
+            except Exception as e:
+                ocr_content = ''
+                logger.error(f"OCR识别失败: {e}")
+            inverted_index, forward_index = offer(group_id, image_name, card + ' ' + ocr_content, inverted_index, forward_index)
+        else:
+            inverted_index, forward_index = offer(group_id, image_name, card + ' ' + raw_message, inverted_index, forward_index)
 
         if group_id not in list(record_dict.keys()):
             record_dict[group_id] = [image_name]
