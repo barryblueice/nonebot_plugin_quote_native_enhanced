@@ -1,7 +1,5 @@
 from nonebot import on_command, on_keyword, on_startswith, get_driver, on_regex
 from nonebot.rule import to_me
-from nonebot.adapters import Message
-from nonebot.params import Arg, ArgPlainText, CommandArg
 from nonebot.adapters.onebot.v11 import Bot, Event, Message, MessageEvent, PrivateMessageEvent, MessageSegment, exception, GroupMessageEvent
 from nonebot.typing import T_State  
 from nonebot.plugin import PluginMetadata
@@ -15,13 +13,9 @@ from .task import offer, query, delete, handle_ocr_text, inverted2forward, findA
 from .task import copy_images_files
 from .config import Config, check_font
 from nonebot.log import logger
-import time
 from paddleocr import PaddleOCR
-from PIL import Image
-import io
 import httpx
 import hashlib
-import uuid
 from .qq_make_image import generate_emulating_native_qq_style_image
 
 # v0.4.3
@@ -362,8 +356,10 @@ async def alltag_handle(bot: Bot, event: GroupMessageEvent, state: T_State, Sess
         msg = ' 该语录不存在'
     else:
         msg = ' 该语录的所有Tag为: '
+        n = 0
         for tag in tags:
-            msg += tag + ' '
+            n += 1
+            msg += f'\n{n}. {tag}'
 
     await alltag.finish(message=MessageSegment.at(user_id) + MessageSegment.text(msg))
 
