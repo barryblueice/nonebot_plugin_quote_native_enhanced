@@ -15,6 +15,12 @@ async def generate_emulating_native_qq_style_image(userid: int, groupid: int, fo
             msglist.append([i["type"], i["data"]["text"]])
         elif i["type"] == "image":
             msglist.append([i["type"], f'<img src="{i["data"]["url"]}" alt="image">'])
+        elif i["type"] == "at":
+            response = await bot.call_api('get_group_member_info', **{
+                'group_id': groupid,
+                'user_id': i["data"]["qq"]
+            })
+            msglist.append(["text",f"@{response['card_or_nickname']}"])
 
     raw_message = msglist
 
