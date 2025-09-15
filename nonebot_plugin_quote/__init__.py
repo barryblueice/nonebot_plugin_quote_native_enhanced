@@ -10,7 +10,7 @@ import random
 import os
 import shutil
 import asyncio
-from .prep import plugin_config, need_at, quote_path, ocr, emulating_font_path
+from .prep import plugin_config, need_at, quote_path, ocr, emulating_font_path, save_json
 from .task import offer, query, delete, findAlltag, addTag, delTag
 from .task import copy_images_files
 from .config import Config, check_font
@@ -104,12 +104,7 @@ async def save_img_handle(bot: Bot, event: GroupMessageEvent, state: T_State, Se
         if image_name not in record_dict[group_id]:
             record_dict[group_id].append(image_name)
 
-
-    with open(plugin_config.record_path, 'w', encoding='UTF-8') as f:
-        json.dump(record_dict, f, indent=4, ensure_ascii=False)
-
-    with open(plugin_config.inverted_index_path, 'w', encoding='UTF-8') as fc:
-        json.dump(inverted_index, fc, indent=4, ensure_ascii=False)
+    save_json(record_dict, inverted_index)
 
     await save_img.finish(MessageSegment.reply(message_id)+MessageSegment.text('保存成功'))
 
@@ -214,10 +209,7 @@ async def delete_record_handle(bot: Bot, event: Event, state: T_State, Session: 
     is_Delete, record_dict, inverted_index, forward_index = delete(imgs, group_id, record_dict, inverted_index, forward_index)
 
     if is_Delete:
-        with open(plugin_config.record_path, 'w', encoding='UTF-8') as f:
-            json.dump(record_dict, f, indent=4, ensure_ascii=False)
-        with open(plugin_config.inverted_index_path, 'w', encoding='UTF-8') as fc:
-            json.dump(inverted_index, fc, indent=4, ensure_ascii=False)
+        save_json(record_dict, inverted_index)
         msg = ' 删除成功'
     else:
         msg = ' 该图不在语录库中'
@@ -271,8 +263,7 @@ async def addtag_handle(bot: Bot, event: GroupMessageEvent, state: T_State, Sess
     imgs = await reply_handle(bot, errMsg, event.model_dump(), group_id, user_id, addtag)
 
     flag, forward_index, inverted_index = addTag(tags, imgs, group_id, forward_index, inverted_index)
-    with open(plugin_config.inverted_index_path, 'w', encoding='UTF-8') as fc:
-        json.dump(inverted_index, fc, indent=4, ensure_ascii=False)
+    save_json(record_dict, inverted_index)
 
     if flag is None:
         msg = ' 该语录不存在'
@@ -298,8 +289,7 @@ async def deltag_handle(bot: Bot, event: GroupMessageEvent, state: T_State, Sess
     imgs = await reply_handle(bot, errMsg, event.model_dump(), group_id, user_id, deltag)
 
     flag, forward_index, inverted_index = delTag(tags, imgs, group_id, forward_index, inverted_index)
-    with open(plugin_config.inverted_index_path, 'w', encoding='UTF-8') as fc:
-        json.dump(inverted_index, fc, indent=4, ensure_ascii=False)
+    save_json(record_dict, inverted_index)
 
     if flag is None:
         msg = ' 该语录不存在'
@@ -357,11 +347,7 @@ async def make_record_handle(bot: Bot, event: GroupMessageEvent, state: T_State,
             if image_name not in record_dict[group_id]:
                 record_dict[group_id].append(image_name)
 
-        with open(plugin_config.record_path, 'w', encoding='UTF-8') as f:
-            json.dump(record_dict, f, indent=4, ensure_ascii=False)
-
-        with open(plugin_config.inverted_index_path, 'w', encoding='UTF-8') as fc:
-            json.dump(inverted_index, fc, indent=4, ensure_ascii=False)
+        save_json(record_dict, inverted_index)
 
         msg = MessageSegment.image(img_data)
         await make_record.send(msg)
@@ -414,11 +400,7 @@ async def render_quote_handle(bot: Bot, event: MessageEvent, state: T_State, Ses
         if image_name not in record_dict[group_id]:
             record_dict[group_id].append(image_name)
 
-    with open(plugin_config.record_path, 'w', encoding='UTF-8') as f:
-        json.dump(record_dict, f, indent=4, ensure_ascii=False)
-
-    with open(plugin_config.inverted_index_path, 'w', encoding='UTF-8') as fc:
-        json.dump(inverted_index, fc, indent=4, ensure_ascii=False)
+    save_json(record_dict, inverted_index)
 
     msg = MessageSegment.image(img_data)
     await make_record.finish(msg)

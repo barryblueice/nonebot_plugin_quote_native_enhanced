@@ -88,3 +88,11 @@ except Exception as e:
 
 forward_index = inverted2forward(inverted_index)
 
+
+
+def save_json(record_dict, inverted_index):
+    with open(plugin_config.record_path, 'w', encoding='UTF-8') as f:
+        json.dump(record_dict, f, indent=4, ensure_ascii=False)
+
+    with open(plugin_config.inverted_index_path, 'w', encoding='UTF-8') as fc:
+        json.dump(inverted_index, fc, indent=4, ensure_ascii=False)
