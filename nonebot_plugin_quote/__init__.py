@@ -10,7 +10,7 @@ import random
 import os
 import shutil
 import asyncio
-from .prep import plugin_config, need_at, quote_path, ocr, emulating_font_path, save_json
+from .prep import plugin_config, need_at, quote_path, ocr, emulating_font_path, record_dict, inverted_index, save_json
 from .task import offer, query, delete, findAlltag, addTag, delTag
 from .task import copy_images_files
 from .config import Config, check_font
