@@ -6,26 +6,37 @@ from nonebot.adapters.onebot.v11 import Bot
 env = Environment(loader=FileSystemLoader(os.path.dirname(os.path.abspath(__file__))))
 template = env.get_template('template.html')
 
-async def generate_emulating_native_qq_style_image(userid: int, groupid: int, fontpath: str,  raw_message: list, bot: Bot, single_message: bool, max_width=600, scale=3) -> bytes:
+async def generate_emulating_native_qq_style_image(userid: int, groupid: int, fontpath: str,  raw_message: list, bot: Bot, multimessage = False, max_width=600, scale=3) -> bytes:
+
+    
+    msglist = []
+    for i in raw_message:
+        if i["type"] == "text":
+            msglist.append([i["type"], i["data"]["text"]])
+        elif i["type"] == "image":
+            msglist.append([i["type"], f'<img src="{i["data"]["url"]}" alt="image">'])
+
+    raw_message = msglist
+
     response = await bot.call_api('get_group_member_info', **{
                 'group_id': groupid,
                 'user_id': userid
             })
-    
-    if single_message:
+
+    if not multimessage:
         data = {
-        "messages": [
-            {
-                "username": response['card_or_nickname'],
-                "level": int(response['level']),
-                "user_type": response['role'],
-                "avatar": f"https://q.qlogo.cn/g?b=qq&nk={userid}&s=640",
-                "title": response['title'],
-                "message": ""
+            "messages": [
+                {
+                    "username": response['card_or_nickname'],
+                    "level": int(response['level']),
+                    "user_type": response['role'],
+                    "avatar": f"https://q.qlogo.cn/g?b=qq&nk={userid}&s=640",
+                    "title": response['title'],
+                    "message": ""
+                }
+            ],
+            "font_path": fontpath
             }
-        ],
-        "font_path": fontpath
-        }
         for i in raw_message:
             # data['messages'].append({
             #     "username": response['card_or_nickname'],

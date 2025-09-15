@@ -1,98 +1,250 @@
-import ujson as json
-from paddleocr import PaddleOCR
-from .config import Config, check_font
-from nonebot import get_driver
-from nonebot.rule import to_me
+import json
+import jieba
 import os
-from nonebot.log import logger
-from .task import inverted2forward
+import random
+import hashlib
+import shutil
+from nonebot.adapters.onebot.v11 import Bot, MessageSegment
 
-ocr = PaddleOCR(use_angle_cls=True, lang='ch')
-try:
-    import numpy as np
-    dummy = np.zeros((100,100,3), dtype=np.uint8)
-    ocr.predict(dummy)
-except Exception:
-    pass
 
-plugin_config = Config.model_validate(get_driver().config.model_dump())
-plugin_config.global_superuser = list({*plugin_config.global_superuser, *plugin_config.superusers})
-
-need_at = {}
-if (plugin_config.quote_needat):
-    need_at['rule'] = to_me()
-
-record_dict = {}
-inverted_index = {}
-quote_path = plugin_config.quote_path
-emulating_font_path = plugin_config.emulating_font_path
-
-# 判断参数配置情况
-if quote_path == 'quote':
-    quote_path = './data'
-    logger.warning('未配置quote文件路径，使用默认配置: ./data')
-os.makedirs(quote_path, exist_ok=True)
-
-if not check_font(emulating_font_path):
-    logger.warning('未配置字体路径，部分功能无法使用')
+# 向语录库添加新的图片
+def offer(group_id, img_file, content, inverted_index, forward_index):
+    # 分词
+    cut_words = cut_sentence(content)
+    # 群号是否在表中
+    if group_id not in inverted_index:
+        inverted_index[group_id] = {}
+        forward_index[group_id] = {}
+        
+    forward_index[group_id][img_file] = set(cut_words)
+    # 分词是否在群的hashmap里
+    for word in cut_words:
+        if word not in inverted_index[group_id]:
+            inverted_index[group_id][word] = [img_file]
+        else:
+            inverted_index[group_id][word].append(img_file)
     
-# 首次运行时导入表
-try:
-    with open(plugin_config.record_path, 'r', encoding='UTF-8') as fr:
-        record_dict = json.load(fr)
-
-    with open(plugin_config.inverted_index_path, 'r', encoding='UTF-8') as fi:
-        inverted_index = json.load(fi)
-    logger.info('nonebot_plugin_quote路径配置成功')
-except Exception as e:
-    with open(plugin_config.record_path, 'w', encoding='UTF-8') as f:
-        json.dump(record_dict, f, indent=4, ensure_ascii=False)
-
-    with open(plugin_config.inverted_index_path, 'w', encoding='UTF-8') as fc:
-        json.dump(inverted_index, fc, indent=4, ensure_ascii=False)
-    logger.warning('已创建json文件')
-
-# 运行前去除数据中的重复内容
-try:
-    for i in record_dict:
-        record_dict[i] = list(set(record_dict[i]))
-    with open(plugin_config.record_path, 'w', encoding='UTF-8') as f:
-        json.dump(record_dict, f, indent=4, ensure_ascii=False)
-
-    for i in inverted_index:
-        for j in inverted_index[i]:
-            inverted_index[i][j] = list(set(inverted_index[i][j]))
-    with open(plugin_config.inverted_index_path, 'w', encoding='UTF-8') as f:
-        json.dump(inverted_index, f, indent=4, ensure_ascii=False)
-    logger.info('已去除语录数据库中的重复内容')
-except Exception as e:
-    logger.error(f'错误: {e}! ')
-
-# 运行前将绝对路径修改为相对路径
-try:
-    for i in record_dict:
-        for idx, val in enumerate(record_dict[i]):
-            record_dict[i][idx] = os.path.basename(val)
-    with open(plugin_config.record_path, 'w', encoding='UTF-8') as f:
-        json.dump(record_dict, f, indent=4, ensure_ascii=False)
-
-    for i in inverted_index:
-        for j in inverted_index[i]:
-            for idx, val in enumerate(inverted_index[i][j]):
-                inverted_index[i][j][idx] = os.path.basename(val)
-    with open(plugin_config.inverted_index_path, 'w', encoding='UTF-8') as f:
-        json.dump(inverted_index, f, indent=4, ensure_ascii=False)
-    logger.info('已去除语录数据库中的绝对路径内容')
-except Exception as e:
-    logger.error(f'错误: {e}! ')
-
-forward_index = inverted2forward(inverted_index)
+    return inverted_index, forward_index
 
 
 
-def save_json(record_dict, inverted_index):
-    with open(plugin_config.record_path, 'w', encoding='UTF-8') as f:
-        json.dump(record_dict, f, indent=4, ensure_ascii=False)
+def query(sentence, group_id, inverted_index):
+    import jieba, random
+    if sentence.startswith('#'):
+        cut_words = [sentence[1:]]
+    else:
+        cut_words = jieba.lcut_for_search(sentence)
+        cut_words = list(set(cut_words))
+    cut_words = [w.lower() if w.isascii() else w for w in cut_words]
+    if group_id not in inverted_index:
+        return {'status': -1}
+    hash_map = inverted_index[group_id]
+    word_sets = []
+    for word in cut_words:
+        word_key = word.lower() if word.isascii() else word
+        if word_key in hash_map:
+            word_sets.append(set(hash_map[word_key]))
+    if not word_sets:
+        return {'status': 2}
 
-    with open(plugin_config.inverted_index_path, 'w', encoding='UTF-8') as fc:
-        json.dump(inverted_index, fc, indent=4, ensure_ascii=False)
+    # AND 查询
+    result_pool = set.intersection(*word_sets)
+    if not result_pool:
+        result_pool = set().union(*word_sets)
+
+    if not result_pool:
+        return {'status': 2}
+
+    return {'status': 1, 'msg': random.choice(list(result_pool))}
+
+
+
+def _remove(arr, ele):
+    old_len = len(arr)
+    for name in arr:
+        file_name = os.path.basename(name)
+        if file_name.endswith(ele):
+            arr.remove(name)
+            break
+    
+    return len(arr) < old_len
+
+
+# 删除内容
+def delete(img_name, group_id, record, inverted_index, forward_index):
+    check = False
+    try:
+        keys = list(inverted_index[group_id].keys())
+        for key in keys:
+            check = _remove(inverted_index[group_id][key], img_name) or check
+            if len(inverted_index[group_id][key]) == 0:
+                del inverted_index[group_id][key]
+        
+        check = _remove(record[group_id], img_name) or check
+        if len(record[group_id]) == 0:
+            del record[group_id]
+
+        for key in forward_index[group_id].keys():
+            file_name = os.path.basename(key)
+            if file_name.endswith(img_name):
+                del forward_index[group_id][key]
+                break
+
+        return check, record, inverted_index, forward_index
+    except KeyError:
+        return check, record, inverted_index, forward_index
+
+
+
+def handle_ocr_text(texts):
+    _len_ = len(texts)
+    if _len_ == 0:
+        return ''
+    ret = texts[0]['text']
+    for i in range(1, _len_):
+        _last_vectors = texts[i-1]['coordinates']
+        _cur_vectors = texts[i]['coordinates']
+        _last_width = _last_vectors[1]['x'] - _last_vectors[0]['x']
+        _cur_width = _cur_vectors[1]['x'] - _cur_vectors[0]['x']
+        _last_start = _last_vectors[0]['x']
+        _cur_start = _cur_vectors[0]['x']
+
+        _last_end = _last_vectors[1]['x']
+        _cur_end = _cur_vectors[1]['x']
+        # 起始点判断 误差在15以内 
+        # 长度判断 上一句比下一句长 误差在5以内
+        if abs(_cur_start - _last_start) <= 15 and _last_width + 5 > _cur_width:
+            # 判定为长句换行了
+            ret += texts[i]['text']
+        # 终点判断 误差在15以内
+        # 长度判断 上一句比下一句短 误差在5以内
+        elif abs(_cur_end - _last_end) <= 15 and _cur_width + 5 > _last_width:
+            # 判定为长句换行了
+            ret += texts[i]['text']
+        else:
+            ret += '\n' + texts[i]['text']
+    
+    return ret
+
+
+def cut_sentence(sentence):
+    cut_words = jieba.lcut_for_search(sentence)
+    cut_words = list(set(cut_words))
+    remove_set = set(['.',',','!','?',':',';','。','，','！','？','：','；','%','$','\n',' ','[',']'])
+    new_words = [word for word in cut_words if word not in remove_set]
+
+    return new_words
+
+
+# 倒排索引 转 正向索引
+def inverted2forward(inverted_index):
+    forward_index = {}
+    for qq_group in inverted_index.keys():
+        forward_index[qq_group] = {}
+        for word, imgs in inverted_index[qq_group].items():
+            for img in imgs:
+                forward_index[qq_group].setdefault(img, set()).add(word)
+    return forward_index
+
+
+# 输出所有tag
+def findAlltag(img_name, forward_index, group_id):
+    for key, value in forward_index[group_id].items():
+        file_name = os.path.basename(key)
+        if file_name.endswith(img_name):
+            return value
+
+
+# 添加tag
+def addTag(tags, img_name, group_id, forward_index, inverted_index):
+    # 是否存在
+    path = None
+    for key in forward_index[group_id].keys():
+        file_name = os.path.basename(key)
+        if file_name.endswith(img_name):
+            path = key
+            for tag in tags:
+                forward_index[group_id][key].add(tag)
+            break
+    if path is None:
+        return None, forward_index, inverted_index
+    for tag in tags:
+        inverted_index[group_id].setdefault(tag, []).append(path)
+    return path, forward_index, inverted_index
+
+
+# 删除tag
+def delTag(tags, img_name, group_id, forward_index, inverted_index):
+    path = None
+    for key in forward_index[group_id].keys():
+        file_name = os.path.basename(key)
+        if file_name.endswith(img_name):
+            path = key
+            for tag in tags:
+                forward_index[group_id][key].discard(tag)
+            break
+    if path is None:
+        return None, forward_index, inverted_index
+    keys = list(inverted_index[group_id].keys())
+    for tag in tags:
+        if tag in keys and path in inverted_index[group_id][tag]:
+            inverted_index[group_id][tag].remove(path)
+            if len(inverted_index[group_id][tag]) == 0:
+                del inverted_index[group_id][tag]
+    return path, forward_index, inverted_index
+
+
+IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif']
+def copy_images_files(source, destinate):
+    image_files = []
+    for root,_,files in os.walk(source):
+        for filename in files:
+            extension = os.path.splitext(filename)[1].lower()
+            if extension in IMAGE_EXTENSIONS:
+                image_path = os.path.join(root, filename)
+                # 获得md5
+                md5 = get_img_md5(image_path) + '.image'
+                tname = md5 + extension
+                # 复制到目录
+                destination_path = os.path.join(destinate, tname)
+                shutil.copy(image_path, destination_path)
+                image_files.append((md5, tname))
+    return image_files
+
+
+def get_img_md5(img_path):
+    with open(img_path, 'rb') as f:
+        img_data = f.read()
+    md5 = hashlib.md5(img_data).hexdigest()
+    return md5
+
+
+async def reply_handle(bot: Bot, errMsg, event_model: json, group_id, user_id, listener):
+    try:
+        event_reply = event_model['reply']
+    except:
+        await listener.finish(message=errMsg)
+
+    # reply_id = event_reply["message_id"]
+
+    # resp = await bot.get_msg(message_id=reply_id)
+    img_msg = event_model['reply']['message']
+
+    image_found = False
+    for msg_part in img_msg:
+        if msg_part['type'] == 'image':
+            image_found = True
+            file_name = msg_part['data']['file']
+            if file_name.startswith('http'):
+                raw_filename = msg_part['data'].get('filename', 'image.jpg').upper()
+                name, _ = os.path.splitext(raw_filename)
+                file_name = name + ".png"
+                break
+            image_info = await bot.call_api('get_image', file=file_name)
+            file_name = os.path.basename(image_info['file'])
+            break
+            
+    if not image_found:
+        await listener.finish(message=MessageSegment.at(user_id) + errMsg)
+
+    return file_name

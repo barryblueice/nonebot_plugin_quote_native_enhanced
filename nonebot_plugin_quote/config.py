@@ -11,11 +11,8 @@ class Config(BaseModel, extra=Extra.ignore):
     quote_needat: bool = True
     quote_startcmd: str = ''
     quote_path: str = 'quote'
-    font_path: str = 'font1'
-    author_font_path: str = 'font2'
-    emulating_native_qq_style: bool = False
-    emulating_font_path: str = 'font3'
+    emulating_font_path: str = ''
 
-def check_font(font_path, author_font_path, emulating_font_path):
+def check_font(emulating_font_path):
     # 判断字体是否配置
-    return not (font_path == 'font1' or author_font_path == 'font2' or emulating_font_path == 'font3')
+    return not (emulating_font_path == '')
