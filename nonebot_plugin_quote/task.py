@@ -4,6 +4,7 @@ import os
 import random
 import hashlib
 import shutil
+from nonebot.adapters.onebot.v11 import Bot, MessageSegment
 
 
 # 向语录库添加新的图片
@@ -208,3 +209,34 @@ def get_img_md5(img_path):
         img_data = f.read()
     md5 = hashlib.md5(img_data).hexdigest()
     return md5
+
+
+async def reply_handle(bot: Bot, errMsg, event_model: json, group_id, user_id, listener):
+    try:
+        event_reply = event_model['reply']
+    except:
+        await listener.finish(message=errMsg)
+
+    # reply_id = event_reply["message_id"]
+
+    # resp = await bot.get_msg(message_id=reply_id)
+    img_msg = event_model['reply']['message']
+
+    image_found = False
+    for msg_part in img_msg:
+        if msg_part['type'] == 'image':
+            image_found = True
+            file_name = msg_part['data']['file']
+            if file_name.startswith('http'):
+                raw_filename = msg_part['data'].get('filename', 'image.jpg').upper()
+                name, _ = os.path.splitext(raw_filename)
+                file_name = name + ".png"
+                break
+            image_info = await bot.call_api('get_image', file=file_name)
+            file_name = os.path.basename(image_info['file'])
+            break
+            
+    if not image_found:
+        await listener.finish(message=MessageSegment.at(user_id) + errMsg)
+
+    return file_name
