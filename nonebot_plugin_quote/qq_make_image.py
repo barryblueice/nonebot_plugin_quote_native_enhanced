@@ -20,7 +20,7 @@ async def generate_emulating_native_qq_style_image(userid: int, groupid: int, fo
                 'group_id': groupid,
                 'user_id': i["data"]["qq"]
             })
-            msglist.append(["text",f"@{response['card_or_nickname']}"])
+            msglist.append(["text",f"@{response['card_or_nickname']} "])
 
     raw_message = msglist
 
