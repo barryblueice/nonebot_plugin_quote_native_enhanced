@@ -18,6 +18,7 @@ from nonebot.log import logger
 import httpx
 import hashlib
 from .qq_make_image import generate_emulating_native_qq_style_image
+from .task import reply_handle
 
 # v0.4.3
 
