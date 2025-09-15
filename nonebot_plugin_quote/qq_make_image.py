@@ -6,13 +6,14 @@ from nonebot.adapters.onebot.v11 import Bot
 env = Environment(loader=FileSystemLoader(os.path.dirname(os.path.abspath(__file__))))
 template = env.get_template('template.html')
 
-async def generate_emulating_native_qq_style_image(userid: int, groupid: int, fontpath: str,  raw_message: list, bot: Bot, max_width=600, scale=3) -> bytes:
+async def generate_emulating_native_qq_style_image(userid: int, groupid: int, fontpath: str,  raw_message: list, bot: Bot, single_message: bool, max_width=600, scale=3) -> bytes:
     response = await bot.call_api('get_group_member_info', **{
                 'group_id': groupid,
                 'user_id': userid
             })
     
-    data = {
+    if single_message:
+        data = {
         "messages": [
             {
                 "username": response['card_or_nickname'],
@@ -25,17 +26,15 @@ async def generate_emulating_native_qq_style_image(userid: int, groupid: int, fo
         ],
         "font_path": fontpath
         }
-    
-    
-    for i in raw_message:
-        # data['messages'].append({
-        #     "username": response['card_or_nickname'],
-        #     "level": int(response['level']),
-        #     "user_type": response['role'],
-        #     "avatar": f"https://q.qlogo.cn/g?b=qq&nk={userid}&s=640",
-        #     "message": i[1]
-        #     })
-        data["messages"][0]["message"] += i[1]
+        for i in raw_message:
+            # data['messages'].append({
+            #     "username": response['card_or_nickname'],
+            #     "level": int(response['level']),
+            #     "user_type": response['role'],
+            #     "avatar": f"https://q.qlogo.cn/g?b=qq&nk={userid}&s=640",
+            #     "message": i[1]
+            #     })
+            data["messages"][0]["message"] += i[1]
 
     html_content = template.render(**data)
 

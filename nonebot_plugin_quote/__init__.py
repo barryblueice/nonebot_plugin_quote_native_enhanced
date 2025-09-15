@@ -536,7 +536,7 @@ async def make_record_handle(bot: Bot, event: GroupMessageEvent, state: T_State,
                         msglist.append([i["type"], i["data"]["text"]])
                     elif i["type"] == "image":
                         msglist.append([i["type"], f'<img src="{i["data"]["url"]}" alt="image">'])
-                img_data = await generate_emulating_native_qq_style_image(int(qqid), int(groupNum), f"file:///{emulating_font_path}",  msglist, bot)
+                img_data = await generate_emulating_native_qq_style_image(int(qqid), int(groupNum), f"file:///{emulating_font_path}",  msglist, bot, True)
             else:
                 if raw_message:
                     img_data = generate_quote_image(image_file, raw_message, card, font_path, author_font_path)
@@ -628,7 +628,7 @@ async def render_quote_handle(bot: Bot, event: MessageEvent, state: T_State, Ses
                     msglist.append([i["type"], i["data"]["text"]])
                 elif i["type"] == "image":
                     msglist.append([i["type"], f'<img src="{i["data"]["url"]}" alt="image">'])
-            img_data = await generate_emulating_native_qq_style_image(int(qqid), int(groupNum), f"file:///{emulating_font_path}",  msglist, bot)
+            img_data = await generate_emulating_native_qq_style_image(int(qqid), int(groupNum), f"file:///{emulating_font_path}",  msglist, bot, True)
         else:
             if raw_message:
                 img_data = generate_quote_image(image_file, raw_message, card, font_path, author_font_path)
