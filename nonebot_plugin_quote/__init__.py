@@ -378,6 +378,7 @@ async def rumor_quote_hanle(bot: Bot, event: GroupMessageEvent, state: T_State, 
     is_at = False
     isimg = False
     msglist = []
+    multimessage = False
 
     global inverted_index
     global record_dict
@@ -398,16 +399,17 @@ async def rumor_quote_hanle(bot: Bot, event: GroupMessageEvent, state: T_State, 
 
         if event.reply:
 
-            msglist = []
+            isimg = False
+
+            msglist_reply = []
 
             for i in event.model_dump()['reply']['message']:
                 if is_at:
-                    msglist.append(i)
-                if i["type"] == 'at':
-                    is_at = True
-                    target_user_id = i["data"]["qq"]
+                    msglist_reply.append(i)
                 if i["type"] == 'image':
                     isimg = True
+
+            msglist = msglist_reply+msglist
 
         img_data = await generate_emulating_native_qq_style_image(
             userid=int(target_user_id),
@@ -415,7 +417,7 @@ async def rumor_quote_hanle(bot: Bot, event: GroupMessageEvent, state: T_State, 
             fontpath=emulating_font_path,
             raw_message=msglist,
             bot=bot,
-            multimessage= False,
+            multimessage=multimessage,
         )
 
         response = await bot.call_api('get_group_member_info', **{
@@ -452,7 +454,10 @@ async def rumor_quote_hanle(bot: Bot, event: GroupMessageEvent, state: T_State, 
         else:
             msg_content = ''
             for i in msglist:
-                msg_content = f'{i["data"]["text"]} '
+                try:
+                    msg_content = f'{i["data"]["text"]} '
+                except:
+                    pass
             inverted_index, forward_index = offer(group_id, image_name, card + ' ' + msg_content, inverted_index, forward_index)
 
         if group_id not in list(record_dict.keys()):
