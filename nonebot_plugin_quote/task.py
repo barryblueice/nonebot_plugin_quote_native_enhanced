@@ -32,24 +32,24 @@ def query(sentence, group_id, inverted_index):
         cut_words = [sentence[1:]]
     else:
         cut_words = jieba.lcut_for_search(sentence)
-        cut_words = list(set(cut_words))
+        cut_words = list(set(cut_words))  # 去重
     cut_words = [w.lower() if w.isascii() else w for w in cut_words]
+
     if group_id not in inverted_index:
         return {'status': -1}
     hash_map = inverted_index[group_id]
+
     word_sets = []
     for word in cut_words:
         word_key = word.lower() if word.isascii() else word
         if word_key in hash_map:
             word_sets.append(set(hash_map[word_key]))
+        else:
+            return {'status': 2}
+
     if not word_sets:
         return {'status': 2}
-
-    # AND 查询
     result_pool = set.intersection(*word_sets)
-    if not result_pool:
-        result_pool = set().union(*word_sets)
-
     if not result_pool:
         return {'status': 2}
 
