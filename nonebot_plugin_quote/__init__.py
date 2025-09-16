@@ -1,7 +1,7 @@
 from nonebot import on_command, on_keyword, on_startswith, get_driver, on_regex
 from nonebot.rule import to_me
 from nonebot.adapters.onebot.v11 import Bot, Event, Message, MessageEvent, PrivateMessageEvent, MessageSegment, exception, GroupMessageEvent
-from nonebot.typing import T_State  
+from nonebot.typing import T_State
 from nonebot.plugin import PluginMetadata
 from nonebot_plugin_session import EventSession
 import re
@@ -19,6 +19,7 @@ import httpx
 import hashlib
 from .qq_make_image import generate_emulating_native_qq_style_image
 from .task import reply_handle
+from .utils import detect_image_format
 
 # v0.4.3
 
@@ -47,7 +48,7 @@ async def save_img_handle(bot: Bot, event: GroupMessageEvent, state: T_State, Se
     global inverted_index
     global record_dict
     global forward_index
-    
+
     if event.reply:
         raw_message = str(event.reply.message)
         match = re.search(r'file=([^,]+)', raw_message)
@@ -62,7 +63,7 @@ async def save_img_handle(bot: Bot, event: GroupMessageEvent, state: T_State, Se
         resp = await bot.call_api('get_image', **{'file': file_name})
         image_path = resp['file']
         shutil.copy(image_path, os.path.join(quote_path, os.path.basename(image_path)))
-    
+
     except Exception as e:
         logger.warning(f"bot.call_api 失败，可能在使用Lagrange，使用 httpx 进行下载: {e}")
         image_url = file_name
@@ -78,7 +79,7 @@ async def save_img_handle(bot: Bot, event: GroupMessageEvent, state: T_State, Se
                 resp = {"file": image_path}
             else:
                 raise Exception("httpx 下载失败")
-    
+
     image_path = os.path.abspath(os.path.join(quote_path, os.path.basename(image_path)))
     image_name = os.path.basename(image_path)
     logger.info(f"图片已保存到 {image_path}")
@@ -200,15 +201,15 @@ async def delete_record_handle(bot: Bot, event: Event, state: T_State, Session: 
     global forward_index
 
     user_id = str(event.get_user_id())
-    
+
     group_id = Session.id2
     if user_id not in plugin_config.global_superuser:
-        if group_id not in plugin_config.quote_superuser or user_id not in plugin_config.quote_superuser[group_id]:  
+        if group_id not in plugin_config.quote_superuser or user_id not in plugin_config.quote_superuser[group_id]:
             await delete_record.finish(MessageSegment.text(' 非常抱歉, 您没有删除权限TUT'), at_sender = True)
 
     errMsg = '请回复需要删除的语录, 并输入删除指令'
     imgs = await reply_handle(bot, errMsg, event.model_dump(), group_id, user_id, delete_record)
-    
+
     # 搜索
     is_Delete, record_dict, inverted_index, forward_index = delete(imgs, group_id, record_dict, inverted_index, forward_index)
 
@@ -235,7 +236,7 @@ async def alltag_handle(bot: Bot, event: GroupMessageEvent, state: T_State, Sess
     group_id = Session.id2
 
     errMsg = '请回复需要指定语录'
-    imgs = await reply_handle(bot, errMsg, event.model_dump(), group_id, user_id, alltag)  
+    imgs = await reply_handle(bot, errMsg, event.model_dump(), group_id, user_id, alltag)
     tags = findAlltag(imgs, forward_index, group_id)
     if tags is None:
         msg = '该语录不存在'
@@ -331,12 +332,13 @@ async def make_record_handle(bot: Bot, event: GroupMessageEvent, state: T_State,
             if i["type"] == "image":
                 isimg = True
         img_data = await generate_emulating_native_qq_style_image(int(qqid), int(group_id), f"file:///{emulating_font_path}",  event.model_dump()['reply']['message'], bot)
-        image_name = f"{qqid}_{hashlib.md5(img_data).hexdigest()}.png"
+        suffix=detect_image_format(img_data)
+        image_name = f"{qqid}_{hashlib.md5(img_data).hexdigest()}.{suffix}"
         image_path = os.path.abspath(os.path.join(quote_path, os.path.basename(image_name)))
         with open(image_path, "wb") as file:
             file.write(img_data)
 
-        if isimg:
+        if isimg and suffix != 'gif':
             loop = asyncio.get_running_loop()
             ocr_result = await loop.run_in_executor(None, ocr.predict, image_path)
             ocr_result = ocr_result[0]['rec_texts']
@@ -387,7 +389,7 @@ async def rumor_quote_hanle(bot: Bot, event: GroupMessageEvent, state: T_State, 
 
     for i in event.model_dump()['original_message']:
         if is_at:
-            
+
             msglist.append(i)
         if i["type"] == 'at':
             is_at = True
@@ -408,7 +410,7 @@ async def rumor_quote_hanle(bot: Bot, event: GroupMessageEvent, state: T_State, 
                 'group_id': group_id,
                 'user_id': target_user_id
             })
-        
+
         card = response['card_or_nickname']
 
         image_name = f"{target_user_id}_{hashlib.md5(img_data).hexdigest()}.png"

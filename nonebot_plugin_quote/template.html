@@ -97,9 +97,9 @@
 
         .message-text {
             display: inline-block;
-            font-size: 13px;
+            font-size: 16px;
             color: #333;
-            padding: 4px 8px;
+            padding: 8px 10px;
             background: #fff;
             border-radius: 8px;
             min-width: fit-content;
@@ -109,6 +109,13 @@
             overflow-wrap: break-word;
             box-shadow: 0 1px 2px rgba(0,0,0,0.1);
             line-height: 1.4;
+        }
+        .message-text:has(> .image-message:only-child) {
+            padding: 0;
+            overflow:hidden;
+        }
+        .message-text:has(> .image-message:only-child) img{
+            margin:0;
         }
 
         .message-text img {
@@ -166,9 +173,9 @@
                 <div class="message-text">
                     {% for item in msg.message %}
                     {% if item[0] == 'text' %}
-                    <div class="text-message">
-                        {{ item[1] }}
-                    </div>
+                    <span class="text-message">
+                        {{ item[1] | safe }}
+                    </span>
                     {% elif item[0] == 'image' %}
                     <div class="image-message" style="max-width:320px">
                         {{item[1] | safe}}
