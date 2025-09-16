@@ -385,15 +385,28 @@ async def rumor_quote_hanle(bot: Bot, event: GroupMessageEvent, state: T_State, 
 
     group_id = Session.id2
 
-    for i in event.model_dump()['original_message']:
-        if is_at:
-            
-            msglist.append(i)
-        if i["type"] == 'at':
-            is_at = True
-            target_user_id = i["data"]["qq"]
-        if i["type"] == 'image':
-            isimg = True
+    if event.reply:
+
+        for i in event.model_dump()['reply']['message']:
+            if is_at:
+                msglist.append(i)
+            if i["type"] == 'at':
+                is_at = True
+                target_user_id = i["data"]["qq"]
+            if i["type"] == 'image':
+                isimg = True
+
+    else:
+
+        for i in event.model_dump()['original_message']:
+            if is_at:
+                msglist.append(i)
+            if i["type"] == 'at':
+                is_at = True
+                target_user_id = i["data"]["qq"]
+            if i["type"] == 'image':
+                isimg = True
+
     if is_at:
         img_data = await generate_emulating_native_qq_style_image(
             userid=int(target_user_id),
