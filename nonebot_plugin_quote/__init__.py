@@ -403,7 +403,6 @@ async def rumor_quote_hanle(bot: Bot, event: GroupMessageEvent, state: T_State, 
             fontpath=emulating_font_path,
             raw_message=msglist,
             bot=bot,
-            multimessage= False,
         )
 
         response = await bot.call_api('get_group_member_info', **{

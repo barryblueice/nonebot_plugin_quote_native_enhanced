@@ -1,4 +1,5 @@
 import io
+import json
 import os
 from typing import List, Dict
 
@@ -14,30 +15,18 @@ template = env.get_template('template.html')
 
 
 async def generate_emulating_native_qq_style_image(userid: int, groupid: int, fontpath: str, raw_message: list,
-                                                   bot: Bot, multimessage=False, max_width=600, scale=3) -> bytes:
-    raw_message = await convert_msg_list(raw_message, bot, groupid)
+                                                   bot: Bot, max_width=600, scale=3) -> bytes:
 
-    response = await bot.call_api('get_group_member_info', **{
-        'group_id': groupid,
-        'user_id': userid
-    })
 
-    if not multimessage:
-        data = {
-            "messages": [
-                {
-                    "username": card_or_nickname(response),
-                    "level": int(response['level']),
-                    "user_type": response['role'],
-                    "avatar": f"https://q.qlogo.cn/g?b=qq&nk={userid}&s=640",
-                    "title": response['title'],
-                    "message": raw_message
-                }
-            ],
-            "font_path": fontpath
-        }
+    messages = await convert_msg_list(raw_message, bot, groupid,userid)
+    # print(messages)
 
+    data = {
+        "messages":messages,
+        "font_path": fontpath
+    }
     html_content = template.render(**data)
+
 
     async with async_playwright() as p:
         browser = await p.chromium.launch()
@@ -67,32 +56,191 @@ def card_or_nickname(response):
     return response.get("card") or response.get("nickname")
 
 
-async def convert_msg_list(raw_message: list, bot: Bot, groupid: int):
-    msg_list = []
-    for item in raw_message:
-        msg_type = item.get("type")
-        data_content = item.get("data", {})
-        if msg_type == "text":
-            text = data_content.get("text", "")
+async def convert_msg_list(raw_message: list, bot: Bot, groupid: int, userid: int):
 
-            msg_list.append([msg_type, text])
+    async def get_member_info(user_id):
+        """获取群成员信息"""
+        try:
+            return await bot.call_api('get_group_member_info', group_id=groupid, user_id=user_id)
+        except Exception:
+            return {}
 
-        elif msg_type == "image":
-            url = data_content.get("url", "")
-            msg_list.append([msg_type, f"<img src='{url}' alt='image'>"])
+    def build_avatar(user_id: int) -> str:
+        return f"https://q.qlogo.cn/g?b=qq&nk={user_id}&s=640"
 
-        elif msg_type == "at":
-            qq = data_content.get("qq", "")
-            response = await bot.call_api('get_group_member_info', **{
-                'group_id': groupid,
-                'user_id': qq
-            })
-            msg_list.append(["text", f"<span style='color: #1E90FF;'>@{card_or_nickname(response)} </span>"])
+    async def parse_text(data: dict):
+        return ["text", data.get("text", "")]
 
+    async def parse_image(data: dict, sub_forward: bool):
+        if not sub_forward:
+            url = data.get("url", "")
+            return ["image", f"<img src='{url}' alt='image'>"]
+        return ["image", data.get("summary", "[图片]")]
+
+    async def parse_at(data: dict):
+        qq = data.get("qq", "")
+        if qq != 'all':
+            resp = await get_member_info(qq)
+            at_nickname = card_or_nickname(resp)
         else:
-            # 未知类型
-            msg_list.append([msg_type, "未知类型"])
-    return msg_list
+            at_nickname="全体成员"
+        return ["text", f"<span style='color: #1E90FF;'>@{at_nickname} </span>"]
+
+    async def parse_reply(data: dict, is_reply: bool, sub_forward: bool):
+        if is_reply or sub_forward:
+            return None
+        reply_id = data.get("id", "")
+        try:
+            resp = await bot.call_api("get_msg", message_id=reply_id)
+            reply_nickname = card_or_nickname(resp.get("sender", {}))
+            reply_msg = await parse_message(resp.get("message"), is_reply=True)
+            return ["reply", reply_msg, reply_nickname]
+        except Exception:
+            return None
+
+    async def parse_forward(data: dict, sub_forward: bool):
+        if sub_forward:
+            return ["text", "[聊天记录]"]
+
+        forward_content = data.get("content", [])
+        msgs_forward = []
+        for msg_forward in forward_content:
+            nickname_forward = msg_forward.get("sender", {}).get("nickname", "未知发送者")
+            try:
+                item_forward = await parse_message(
+                    msg_forward.get("message"),
+                    nickname=nickname_forward,
+                    is_forward=True,
+                    sub_forward=True,
+                )
+                msgs_forward.append(item_forward)
+            except Exception as e:
+                print(f"解析转发消息时出错: {e}")
+                msgs_forward.append(["text", "[转发消息解析失败]"])
+        return ["forward", msgs_forward, "群聊的聊天记录"]
+
+    async def parse_json(data: dict, sub_forward: bool):
+        """解析 type=json 的小程序/卡片消息"""
+        data = json.loads(data.get("data"))
+        detail = data.get("meta", {}).get("detail_1", {})
+
+
+
+        title = detail.get("title", "卡片消息")
+        desc = detail.get("desc", "")
+        preview = detail.get("preview", "")
+        icon = detail.get("icon", "")
+
+        # 转发里的只显示简略
+        if sub_forward:
+            return ["text", f"[卡片消息] {title}"]
+
+        # 返回统一格式
+        return [
+            "json",
+            {
+                "title": title,
+                "desc": desc,
+                "preview": preview,
+                "icon": icon
+            }
+        ]
+
+    async def parse_message(
+            messages: list,
+            user_id: int = 0,
+            nickname: str = "",
+            is_forward: bool = False,
+            is_reply: bool = False,
+            sub_forward: bool = False,
+    ):
+        msg_list = []
+
+        for item in messages:
+            msg_type = item.get("type")
+            data = item.get("data", {})
+
+            parser_map = {
+                "text": parse_text,
+                "image": lambda d=data: parse_image(d, sub_forward),
+                "at": parse_at,
+                "reply": lambda d=data: parse_reply(d, is_reply, sub_forward),
+                "forward": lambda d=data: parse_forward(d, sub_forward),
+                "face": lambda d=data: ["text", "[表情]", nickname],
+                "json": lambda d=data: parse_json(d, sub_forward),
+            }
+
+            parser = parser_map.get(msg_type)
+            if parser:
+                result = await parser(data) if callable(parser) else parser
+                if result:
+                    msg_list.append(result)
+            else:
+                # print("未知类型:", msg_type, data)
+                # msg_list.append(["未知", "未知类型"])
+                if not is_forward and not sub_forward:
+                    await bot.call_api('send_group_msg', **{
+                        "group_id": groupid,
+                        "message": [
+                            {
+                                "type": "text",
+                                "data": {
+                                    "text": "该类型不支持哦"
+                                }
+                            }
+                        ]
+                    })
+
+                raise ValueError("未知类型",msg_type,data)
+
+        if is_forward:
+            return {
+                "username": nickname,
+                "avatar": build_avatar(user_id),
+                "message": msg_list,
+            }
+
+
+        if is_reply:
+            return msg_list
+
+
+        resp = await get_member_info(user_id)
+        return {
+            "username": card_or_nickname(resp),
+            "level": int(resp.get("level", 0)),
+            "user_type": resp.get("role", ""),
+            "avatar": build_avatar(user_id),
+            "title": resp.get("title", ""),
+            "message": msg_list,
+        }
+
+
+
+    if len(raw_message) == 1 and raw_message[0].get("type") == "forward":
+        msg_id = raw_message[0]["data"].get("id")
+        response = await bot.call_api("get_forward_msg", id=msg_id)
+        # print("外层聊天记录回应:", response)
+
+        return [
+            await parse_message(
+                msg.get("message"),
+                user_id=msg.get("sender", {}).get("user_id", 0),  # ✅ 传 user_id
+                nickname=msg.get("sender", {}).get("nickname", "未知发送者"),
+                is_forward=True
+            )
+            for msg in response.get("messages", [])
+        ]
+
+    # 带 sender 的普通消息
+    if raw_message[0].get("sender"):
+        return [
+            await parse_message(msg.get("message"), msg.get("sender", {}).get("user_id"))
+            for msg in raw_message
+        ]
+
+    # 默认处理
+    return [await parse_message(raw_message, userid)]
 
 
 async def process_gifs(gifs, page, background_bytes=None, background_path=None, output_gif="final.gif", output=True):
@@ -151,10 +299,11 @@ async def generate_img(page):
                     })
                 else:
                     #TO_DO 改为真寻日志
-                    print(f"❌图片加载失败，状态码：{response.status}, src: {src}")
+                    # print(f"❌图片加载失败，状态码：{response.status}, src: {src}")
+                    raise ValueError(f"❌图片加载失败，状态码：{response.status}, src: {src}")
             except Exception as e:
                 # TO_DO 改为真寻日志
-                print(f"❌获取图片出错：{e}, src: {src}")
+                raise ValueError(f"❌获取图片出错：{e}, src: {src}")
 
         screenshot_bytes = await page.screenshot(full_page=False)
 
@@ -197,16 +346,27 @@ async def enable_gif_detector(page: Page, verbose: bool = False):
     async def handle_response(resp):
         try:
             url = resp.url
+            status = resp.status
+
+            # 跳过重定向响应
+            if 300 <= status < 400:
+                return
+
             body = await resp.body()
 
-            if is_animated_image(body) and url in img_map:
-                for img in img_map[url]:
+            if is_animated_image(body):
+                # 匹配原始请求 URL 或 最终 URL
+                if url in img_map:
+                    targets = img_map[url]
+                else:
+                    # 如果没找到，可以尝试根据 src 重新找
+                    targets = await page.query_selector_all(f'img[src="{url}"]')
+                for img in targets:
                     await img.evaluate("el => el.setAttribute('data-gif', 'true')")
                     if verbose:
                         outer_html = await img.evaluate("el => el.outerHTML")
-                        # print(f"[GIF DETECTED] {url}\n{outer_html}\n")
         except Exception as e:
-            raise TypeError("分析失败")
+            raise TypeError("分析失败") from e
 
     page.on("request", handle_request)
     page.on("response", handle_response)

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
     <meta charset="UTF-8">
     <title>Chat UI</title>
@@ -66,8 +67,8 @@
             font-weight: 500;
         }
 
-        :root{
-        --level-font-size:10px;
+        :root {
+            --level-font-size: 10px;
         }
 
         .level {
@@ -77,9 +78,10 @@
             font-size: var(--level-font-size);
             display: flex;
             align-items: center;
-            gap:2px;
+            gap: 2px;
         }
-        .level div{
+
+        .level div {
             line-height: 1;
         }
 
@@ -107,15 +109,17 @@
             max-width: 100%;
             word-wrap: break-word;
             overflow-wrap: break-word;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
             line-height: 1.4;
         }
+
         .message-text:has(> .image-message:only-child) {
             padding: 0;
-            overflow:hidden;
+            overflow: hidden;
         }
-        .message-text:has(> .image-message:only-child) img{
-            margin:0;
+
+        .message-text:has(> .image-message:only-child) img {
+            margin: 0;
         }
 
         .message-text img {
@@ -126,69 +130,288 @@
             margin-bottom: 4px;
         }
 
+        .reply {
+            padding: 8px 10px;
+            background-color: rgba(60, 60, 60, 0.1);
+            font-size: 14px;
+            margin-bottom: 8px;
+            border-radius: 5px;
+            gap: 6px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .reply img {
+            border-radius: 5px;
+        }
+
+        .reply .nickname_reply {
+            font-size: 12px;
+            display: flex;
+            width: 100%;
+            justify-content: space-between;
+        }
+
+        .reply .nickname_reply svg {
+            height: 16px;
+            width: 18px;
+        }
+
+        .message-text:has(.forward),
+        .message-text:has(.json) {
+            padding: 0;
+            box-shadow: none;
+
+        }
+
+        .forward {
+            display: flex;
+            flex-direction: column;
+            max-width: 210px;
+            padding-block: 4px;
+        }
+
+        .forward .forward_title {
+            padding-block: 6px;
+            padding-inline: 12px;
+        }
+
+        .forward .forward_messages {
+            font-size: 11px;
+            padding-bottom: 8px;
+            border-bottom: #eaeaea 1px solid;
+            display: flex;
+            flex-direction: column;
+            gap: 1px
+        }
+
+        .forward .forward_message {
+            text-overflow: ellipsis;
+            overflow: hidden;
+            white-space: nowrap;
+            padding-inline: 12px;
+            color: #71717B;
+        }
+
+        .forward .forward_messages .forward_message:nth-child(n+5) {
+            display: none;
+        }
+
+        .forward .forward_footer {
+            margin-top: 2px;
+            padding-inline: 12px;
+            font-size: 11px;
+            color: #71717B;
+        }
+
+        .json {
+            max-width: 240px;
+        }
+
+        .json .json_title {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding-block: 4px;
+            padding-inline: 12px;
+        }
+
+        .json .json_title .icon img {
+            width: 14px;
+            height: 14px;
+            margin: 0;
+            border-radius: 4px;
+        }
+
+        .json .json_title .title {
+            font-size: 9px;
+            color: #71717B;
+        }
+
+        .json .json_desc {
+            font-size: 13px;
+            text-overflow: ellipsis;
+            overflow: hidden;
+            white-space: nowrap;
+            padding-inline: 12px;
+        }
+
+        .json .json_preview {
+            padding-inline: 12px;
+            padding-block: 4px;
+        }
+
+        .json .json_content {
+            border-bottom: #eaeaea 1px solid;
+            padding-top: 8px;
+        }
+
+        .json .json_footer {
+            padding-inline: 12px;
+            padding-block: 4px;
+            font-size: 9px;
+            color: #71717B;
+            display: flex;
+            align-items: center;
+        }
+
+        .json .json_footer img {
+            width: 10px;
+            height: 10px;
+            margin: 0;
+            margin-right: 4px;
+        }
     </style>
 </head>
-<body>
-<div class="chat-wrapper">
-    <div class="chat-container">
-        {% for msg in messages %}
-        <div class="chat-message">
-            <img class="avatar" src="{{ msg.avatar }}" alt="avatar">
-            <div class="message-block">
-                <div class="username-level">
-                    <span class="username">{{ msg.username }}</span>
 
-                    {% if msg.user_type == 'member' %}
-                        <div class="level member"
-                             style="background-color: {% if msg.title %}#e4daf3{% else %}#E2E2E2{% endif %};
+<body>
+    <div class="chat-wrapper">
+        <div class="chat-container">
+            {% for msg in messages %}
+            <div class="chat-message">
+                <img class="avatar" src='{{ msg.avatar }}' alt="avatar">
+                <div class="message-block">
+                    <div class="username-level">
+                        <span class="username">{{ msg.username }}</span>
+
+                        {% if msg.level %}
+                        {% if msg.user_type == 'member' %}
+                        <div class="level member" style="background-color: {% if msg.title %}#e4daf3{% else %}#E2E2E2{% endif %};
                                     color: {% if msg.title %}#b589f6{% else %}#a2a2a2{% endif %};">
                             <div>LV{{ msg.level }}</div>
                             {% if msg.title %}
-                                <div>{{ msg.title }}</div>
+                            <div>{{ msg.title }}</div>
                             {% endif %}
                         </div>
 
-                    {% elif msg.user_type == 'admin' %}
+                        {% elif msg.user_type == 'admin' %}
                         <div class="level admin">
                             <div>LV{{ msg.level }}</div>
                             {% if msg.title %}
-                                <div>{{ msg.title }}</div>
+                            <div>{{ msg.title }}</div>
                             {% else %}
-                                <div>管理员</div>
+                            <div>管理员</div>
                             {% endif %}
                         </div>
-                    {% elif msg.user_type == 'owner' %}
+                        {% elif msg.user_type == 'owner' %}
                         <div class="level owner">
                             <div>LV{{ msg.level }}</div>
                             {% if msg.title %}
-                                <div>{{ msg.title }}</div>
+                            <div>{{ msg.title }}</div>
                             {% else %}
-                                <div>群主</div>
+                            <div>群主</div>
                             {% endif %}
                         </div>
 
-                    {% endif %}
+                        {% endif %}
+                        {% endif %}
 
-                </div>
-                <div class="message-text">
-                    {% for item in msg.message %}
-                    {% if item[0] == 'text' %}
-                    <span class="text-message">
-                        {{ item[1] | safe }}
-                    </span>
-                    {% elif item[0] == 'image' %}
-                    <div class="image-message" style="max-width:320px">
-                        {{item[1] | safe}}
                     </div>
-                    {% else %}
-                    <div>[未知类型: {{ item.type }}]</div>
-                    {% endif %}
-                    {% endfor %}
+                    <div class="message-text">
+                        {% for item in msg.message %}
+                        {% if item[0] == 'text' %}
+                        <span class="text-message">
+                            {{ item[1] }}
+                        </span>
+                        {% elif item[0] == 'image' %}
+                        <div class="image-message" style="max-width:320px">
+                            {{item[1] | safe}}
+                        </div>
+                        {% elif item[0] == 'reply' %}
+                        <div class="reply" style="max-width:320px">
+
+                            <div class="nickname_reply">
+                                <span>{{item[2]}}</span>
+
+                                <svg t="1758049537092" class="icon" viewBox="0 0 1024 1024" version="1.1"
+                                    xmlns="http://www.w3.org/2000/svg" p-id="3742" width="200" height="200">
+                                    <path
+                                        d="M771.84 163.2H252.16a28.8 28.8 0 1 0 0 57.6h519.68a28.8 28.8 0 0 0 0-57.6zM533.76 280.32A29.44 29.44 0 0 0 512 272a27.52 27.52 0 0 0-23.04 12.8L247.04 526.08a28.8 28.8 0 1 0 40.96 40.96l195.2-192V832a28.8 28.8 0 0 0 57.6 0V369.92l195.2 192a28.8 28.8 0 0 0 40.96-40.96z"
+                                        fill="#2c2c2c" p-id="3743"></path>
+                                </svg>
+
+                            </div>
+
+                            {% for sub_item in item[1] %}
+                            {% if sub_item[0] == 'text' %}
+                            <span class="text-reply">
+                                {{ sub_item[1] | safe }}
+                            </span>
+                            {% elif sub_item[0] == 'image' %}
+                            <div class="image-reply" style="max-width:320px">
+                                {{ sub_item[1] | safe }}
+                            </div>
+                            {% else %}
+                            <div>[未知类型: {{ sub_item }}]</div>
+                            {% endif %}
+                            {% endfor %}
+                        </div>
+
+                        {% elif item[0] == 'forward' %}
+                        <div class="forward">
+                            <div class="forward_title">
+                                {{item[2]}}
+                            </div>
+                            <div class="forward_messages">
+                                {% for forwarded_msg in item[1] %}
+                                <div class="forward_message">
+                                    <span class="forward_nickname">{{ forwarded_msg.username }}: </span>
+
+                                    {% for sub_item in forwarded_msg.message %}
+                                    {% if sub_item[0] == 'text' %}
+                                    <span class="text-forward">
+                                        {{ sub_item[1] | safe }}
+                                    </span>
+                                    {% elif sub_item[0] == 'image' %}
+                                    <span class="image-forward" style="max-width:320px">
+                                        {{ sub_item[1] | safe }}
+                                    </span>
+                                    {% else %}
+                                    <span>[未知类型: {{ sub_item }}]</span>
+                                    {% endif %}
+                                    {% endfor %}
+                                </div>
+                                {% endfor %}
+                            </div>
+                            <div class="forward_footer">
+                                聊天记录
+                            </div>
+                        </div>
+
+                        {% elif item[0] == 'json' %}
+                        <div class="json">
+                            <div class="json_content">
+                                <div class="json_title">
+                                    <div class="icon"><img src="{{item[1].icon}}" alt=""></div>
+                                    <div class="title">{{item[1].title}}</div>
+                                </div>
+                                <div class="json_desc">
+                                    {{item[1].desc}}
+                                </div>
+                                <div class="json_preview">
+                                    <img src="{{item[1].preview}}" alt="">
+                                </div>
+                            </div>
+                            <div class="json_footer">
+
+                                <div class="footer_img">
+                                    <img src="https://q.qq.com/wiki/favicon.ico" alt="">
+                                </div>
+                                <div class="footer_title">
+                                    QQ小程序
+                                </div>
+                            </div>
+                        </div>
+                        {% else %}
+                        <div>[未知类型: {{ item[1] }}]</div>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
                 </div>
             </div>
+            {% endfor %}
         </div>
-        {% endfor %}
     </div>
-</div>
 </body>
+
 </html>
