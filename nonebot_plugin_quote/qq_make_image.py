@@ -3,7 +3,7 @@ import json
 import os
 from typing import List, Dict
 
-from PIL import Image  # Pillow
+from PIL import Image, ImageChops  # Pillow
 from jinja2 import Environment, FileSystemLoader
 from nonebot.adapters.onebot.v11 import Bot
 from playwright.async_api import async_playwright, Page, ElementHandle
@@ -32,7 +32,7 @@ async def generate_emulating_native_qq_style_image(userid: int, groupid: int, fo
         browser = await p.chromium.launch()
         page = await browser.new_page(viewport={'width': max_width, 'height': 100}, device_scale_factor=scale)
 
-        await enable_gif_detector(page, verbose=True)
+        await enable_gif_detector(page, verbose=False)
 
         await page.set_content(html_content, wait_until='networkidle')
 
@@ -320,10 +320,50 @@ async def enable_gif_detector(page: Page, verbose: bool = False):
 
     img_map: Dict[str, List[ElementHandle]] = {}
 
-    def is_animated_image(data: bytes) -> bool:
+    def is_gif_really_animated(data: bytes) -> bool:
+        if data[:6] not in (b"GIF87a", b"GIF89a"):
+            return False  # 不是 GIF
+
+        img = Image.open(io.BytesIO(data))
+        n_frames = getattr(img, "n_frames", 1)
+
+        # 单帧 GIF
+        if n_frames <= 1:
+            return False
+
+        prev_frame = None
+        has_animation = False
+
+        for i in range(n_frames):
+            img.seek(i)
+            duration = img.info.get("duration", 0)
+            frame = img.convert("RGB")
+
+            if prev_frame is not None:
+                diff = ImageChops.difference(prev_frame, frame)
+                if diff.getbbox() and duration > 0:
+                    has_animation = True
+                    break
+
+            prev_frame = frame
+
+        return has_animation
+
+    # 单帧或假动图转换为 PNG
+    def convert_gif_to_png(data: bytes) -> bytes | None:
+        img = Image.open(io.BytesIO(data))
+        n_frames = getattr(img, "n_frames", 1)
+
+        if n_frames == 1 or not is_gif_really_animated(data):
+            output = io.BytesIO()
+            img.save(output, format="PNG")
+            return output.getvalue()
+        return None
+
+    async def is_animated_image(resp, data: bytes) -> bool:
         # GIF
         if data[:6] in (b"GIF87a", b"GIF89a"):
-            return b"\x00\x21\xF9\x04" in data and data.count(b"\x00\x2C") > 1
+            return data.count(b"\x00\x2C") > 1
         # WebP
         if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
             return b"ANIM" in data
@@ -354,7 +394,7 @@ async def enable_gif_detector(page: Page, verbose: bool = False):
 
             body = await resp.body()
 
-            if is_animated_image(body):
+            if await is_animated_image(resp,body):
                 # 匹配原始请求 URL 或 最终 URL
                 if url in img_map:
                     targets = img_map[url]
@@ -362,11 +402,38 @@ async def enable_gif_detector(page: Page, verbose: bool = False):
                     # 如果没找到，可以尝试根据 src 重新找
                     targets = await page.query_selector_all(f'img[src="{url}"]')
                 for img in targets:
+                    # print("断点3", img)
                     await img.evaluate("el => el.setAttribute('data-gif', 'true')")
                     if verbose:
                         outer_html = await img.evaluate("el => el.outerHTML")
+                        print(f"[GIF DETECTED] {url}\n{outer_html}\n")
         except Exception as e:
             raise TypeError("分析失败") from e
 
+    async def handle_route(route, request):
+        if request.resource_type == "image":
+            resp = await route.fetch()
+            body = await resp.body()
+
+            png_data = convert_gif_to_png(body)
+            if png_data:
+                if verbose:
+                    print(f"[STATIC GIF -> PNG] {request.url}")
+                await route.fulfill(
+                    status=200,
+                    body=png_data,
+                    headers={**resp.headers, "Content-Type": "image/png"}
+                )
+                return
+
+            await route.fulfill(
+                status=resp.status,
+                body=body,
+                headers=resp.headers
+            )
+        else:
+            await route.continue_()
+
+    await page.route("**/*", handle_route)
     page.on("request", handle_request)
     page.on("response", handle_response)
