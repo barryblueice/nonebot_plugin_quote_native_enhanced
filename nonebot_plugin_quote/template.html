@@ -261,6 +261,21 @@
             margin: 0;
             margin-right: 4px;
         }
+
+        .json .json_content:has(.feed){
+            padding-top: 0;
+            padding-bottom: 4px;
+            border-radius: 8px 8px 0 0;
+            overflow:hidden;
+        }
+
+        .json .json_content:has(.feed) .json_preview{
+            padding:0;
+        }
+        .json .json_content:has(.feed) .json_preview img{
+            margin: 0;
+        }
+
     </style>
 </head>
 
@@ -379,29 +394,79 @@
                         </div>
 
                         {% elif item[0] == 'json' %}
-                        <div class="json">
-                            <div class="json_content">
-                                <div class="json_title">
-                                    <div class="icon"><img src="{{item[1].icon}}" alt=""></div>
-                                    <div class="title">{{item[1].title}}</div>
-                                </div>
-                                <div class="json_desc">
-                                    {{item[1].desc}}
-                                </div>
-                                <div class="json_preview">
-                                    <img src="{{item[1].preview}}" alt="">
-                                </div>
-                            </div>
-                            <div class="json_footer">
+                                {% set card_type = item[1].type or 'unknown' %}
 
-                                <div class="footer_img">
-                                    <img src="https://q.qq.com/wiki/favicon.ico" alt="">
+                                {# ========== 小程序卡片：图标在左，标题在右 ========== #}
+                                {% if card_type == 'miniapp' %}
+                                <div class="json">
+                                    <div class="json_content">
+                                        <div class="json_title miniapp">
+                                            <div class="icon">
+                                                <img src="{{ item[1].icon or '' }}" alt="">
+                                            </div>
+                                            <div class="title">{{ item[1].title }}</div>
+                                        </div>
+                                        <div class="json_desc">{{ item[1].desc }}</div>
+                                        {% if item[1].preview %}
+                                        <div class="json_preview">
+                                            <img src="{{ item[1].preview }}" alt="">
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="json_footer">
+                                        <div class="footer_img">
+                                            <img src="https://q.qq.com/wiki/favicon.ico" alt="">
+                                        </div>
+                                        <div class="footer_title">QQ小程序</div>
+                                    </div>
                                 </div>
-                                <div class="footer_title">
-                                    QQ小程序
+
+                                {# ========== 群相册卡片：封面在上，标题+描述在下 ========== #}
+                                {% elif card_type == 'feed' %}
+                                <div class="json">
+
+
+                                    <div class="json_content">
+                                        {% if item[1].preview %}
+                                     <div class="json_preview">
+                                        <img src="{{ item[1].preview }}" alt="">
+                                    </div>
+                                        {% endif %}
+                                        <div class="json_title feed">
+                                            <div class="title">{{ item[1].title }}</div>
+                                        </div>
+                                        <div class="json_desc">{{ item[1].desc }}</div>
+                                    </div>
+                                    <div class="json_footer">
+                                        <div class="footer_img">
+                                            <img src="{{ item[1].icon or '' }}" alt="">
+                                        </div>
+                                        <div class="footer_title">群相册</div>
+                                    </div>
                                 </div>
-                            </div>
-                        </div>
+
+                                {# ========== 默认未知卡片 ========== #}
+                                {% else %}
+                                <div class="json">
+                                    <div class="json_content">
+                                        <div class="json_title">
+                                            <div class="icon">
+                                                <img src="{{ item[1].icon or 'https://q.qq.com/wiki/favicon.ico' }}" alt="">
+                                            </div>
+                                            <div class="title">{{ item[1].title }}</div>
+                                        </div>
+                                        <div class="json_desc">{{ item[1].desc }}</div>
+                                        {% if item[1].preview %}
+                                        <div class="json_preview">
+                                            <img src="{{ item[1].preview }}" alt="">
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="json_footer">
+                                        <div class="footer_title">卡片消息</div>
+                                    </div>
+                                </div>
+                                {% endif %}
                         {% else %}
                         <div>[未知类型: {{ item[1] }}]</div>
                         {% endif %}

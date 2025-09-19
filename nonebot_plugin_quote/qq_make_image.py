@@ -121,28 +121,49 @@ async def convert_msg_list(raw_message: list, bot: Bot, groupid: int, userid: in
 
     async def parse_json(data: dict, sub_forward: bool):
         """解析 type=json 的小程序/卡片消息"""
-        data = json.loads(data.get("data"))
-        detail = data.get("meta", {}).get("detail_1", {})
+        try:
+            raw_data = json.loads(data.get("data", "{}"))
+        except (TypeError, json.JSONDecodeError):
+            raw_data = {}
 
+        meta = raw_data.get("meta", {})
+        detail = meta.get("detail_1", {})
+        feed = meta.get("feed", {})
 
+        # 默认值
+        card_type = "unknown"
+        title = "卡片消息"
+        desc = "暂不支持"
+        preview = ""
+        icon = ""
 
-        title = detail.get("title", "卡片消息")
-        desc = detail.get("desc", "")
-        preview = detail.get("preview", "")
-        icon = detail.get("icon", "")
+        if detail:
+            card_type = "miniapp"
+            title = detail.get("title", title)
+            desc = detail.get("desc", desc)
+            preview = detail.get("preview", preview)
+            icon = detail.get("icon", icon)
 
-        # 转发里的只显示简略
+        elif feed:
+            card_type = "feed"
+            title = feed.get("title", title)
+            desc = feed.get("forwardMessage", desc)
+            preview = feed.get("cover", preview)
+            icon = feed.get("tagIcon", icon)
+
+        # ========== 转发简化 ==========
         if sub_forward:
             return ["text", f"[卡片消息] {title}"]
 
-        # 返回统一格式
+        # ========== 统一返回 ==========
         return [
             "json",
             {
                 "title": title,
                 "desc": desc,
                 "preview": preview,
-                "icon": icon
+                "icon": icon,
+                "type": card_type
             }
         ]
 
